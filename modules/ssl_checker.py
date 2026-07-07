@@ -11,64 +11,45 @@ def check_ssl_cert(hostname: str, port: int = 443) -> dict:
         "Vulnerabilities": []
     }
     
-    # Python context protocol testing framework array
-    protocol_tests = {
-        "SSLv3": ssl.PROTOCOL_TLS_CLIENT,
-        "TLSv1.0": ssl.PROTOCOL_TLS_CLIENT,
-        "TLSv1.1": ssl.PROTOCOL_TLS_CLIENT,
-        "TLSv1.2": ssl.PROTOCOL_TLS_CLIENT,
-        "TLSv1.3": ssl.PROTOCOL_TLS_CLIENT
+    # Standard security map
+    test_versions = {
+        "SSLv3": ssl.TLSVersion.SSLv3 if hasattr(ssl.TLSVersion, 'SSLv3') else None,
+        "TLSv1.0": ssl.TLSVersion.TLSv1 if hasattr(ssl.TLSVersion, 'TLSv1') else None,
+        "TLSv1.1": ssl.TLSVersion.TLSv1_1 if hasattr(ssl.TLSVersion, 'TLSv1_1') else None,
+        "TLSv1.2": ssl.TLSVersion.TLSv1_2 if hasattr(ssl.TLSVersion, 'TLSv1_2') else None,
+        "TLSv1.3": ssl.TLSVersion.TLSv1_3 if hasattr(ssl.TLSVersion, 'TLSv1_3') else None
     }
     
-    for proto_name, proto_ctx in protocol_tests.items():
+    # Individual precise handshake loop
+    for name, version_enum in test_versions.items():
+        if version_enum is None:
+            continue
         try:
-            context = ssl.create_default_context()
+            # TLS_CLIENT mode automatically configures verification parameters safely
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
             context.check_hostname = True
             context.verify_mode = ssl.CERT_REQUIRED
+            context.minimum_version = version_enum
+            context.maximum_version = version_enum
             
-            # Har individual check ko lock kar rahe hain takay fallback na ho
-            if proto_name == "SSLv3":
-                context.maximum_version = ssl.TLSVersion.SSLv3
-                context.minimum_version = ssl.TLSVersion.SSLv3
-            elif proto_name == "TLSv1.0":
-                context.maximum_version = ssl.TLSVersion.TLSv1
-                context.minimum_version = ssl.TLSVersion.TLSv1
-            elif proto_name == "TLSv1.1":
-                context.maximum_version = ssl.TLSVersion.TLSv1_1
-                context.minimum_version = ssl.TLSVersion.TLSv1_1
-            elif proto_name == "TLSv1.2":
-                context.maximum_version = ssl.TLSVersion.TLSv1_2
-                context.minimum_version = ssl.TLSVersion.TLSv1_2
-            elif proto_name == "TLSv1.3":
-                if hasattr(ssl, 'TLSVersion') and hasattr(ssl.TLSVersion, 'TLSv1_3'):
-                    context.maximum_version = ssl.TLSVersion.TLSv1_3
-                    context.minimum_version = ssl.TLSVersion.TLSv1_3
-                else:
-                    continue
-
             with socket.create_connection((hostname, port), timeout=3) as sock:
                 with context.wrap_socket(sock, server_hostname=hostname) as ssock:
-                    # Connection ka actual active version verify kar rahe hain
-                    actual_version = ssock.version()
-                    if proto_name in actual_version or actual_version.replace(".", "v") == proto_name:
-                        results["Protocols_Supported"].append(proto_name)
-                    elif proto_name == "SSLv3" and "SSL" in actual_version:
-                        results["Protocols_Supported"].append(proto_name)
+                    # Connection successfully bounded strictly to target type
+                    results["Protocols_Supported"].append(name)
         except Exception:
-            # Agar handshake reject hua, to protocol supported nahi hai
+            # If handshake drops, target does not support this exact configuration
             pass
 
-    # Double check confirmation setup for running platform modern standards
-    # Agar target strict standard check bypass kar gaya, to normal secure extraction chalegi
-    context = ssl.create_default_context()
+    # Global connection layer for metadata parsing
     try:
+        context = ssl.create_default_context()
         with socket.create_connection((hostname, port), timeout=3) as sock:
             with context.wrap_socket(sock, server_hostname=hostname) as ssock:
                 cert = ssock.getpeercert()
-                active_version = ssock.version()
+                active_ver = ssock.version()
                 
-                # Agar array khali reh gayi ho baseline bypass ki wajah se
-                clean_ver = active_version.replace(".", "v") # e.g., TLSv1.3
+                # Check mapping for dynamic outputs fallback logic
+                clean_ver = active_ver.replace("TLSv", "TLSv1.") if active_ver == "TLSv1" else active_ver
                 if clean_ver not in results["Protocols_Supported"]:
                     results["Protocols_Supported"].append(clean_ver)
                 
@@ -84,7 +65,7 @@ def check_ssl_cert(hostname: str, port: int = 443) -> dict:
                 remaining = exp_dt - datetime.utcnow()
                 results["Days_Remaining"] = remaining.days
                 
-                # --- Risk Analysis Real Assessment ---
+                # Dynamic Security Evaluation Engine
                 insecure_found = [p for p in ["SSLv3", "TLSv1.0", "TLSv1.1"] if p in results["Protocols_Supported"]]
                 if insecure_found:
                     results["Vulnerabilities"].append(f"Accepts Deprecated Protocols ({', '.join(insecure_found)})")
@@ -92,10 +73,14 @@ def check_ssl_cert(hostname: str, port: int = 443) -> dict:
                 if remaining.days <= 0:
                     results["Vulnerabilities"].append("Certificate EXPIRED")
                 
+                # Clean screen outputs presentation mapping
                 print(f"\n{Colors.GREEN}[+] SSL Audit Completed Successfully!")
                 print(f"  {Colors.WHITE}Issuer: {results['Issuer_CN']}")
                 print(f"  {Colors.WHITE}Days Remaining: {results['Days_Remaining']}")
-                print(f"  {Colors.WHITE}Supported Protocols: {list(set(results['Protocols_Supported']))}")
+                
+                # Clean duplicate and format sorting string errors
+                final_protocols = sorted(list(set(results["Protocols_Supported"])))
+                print(f"  {Colors.WHITE}Supported Protocols: {final_protocols}")
                 
                 if results["Vulnerabilities"]:
                     print(f"  {Colors.RED}Vulnerabilities Detected: {results['Vulnerabilities']}")
