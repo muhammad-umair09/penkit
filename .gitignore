@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+logs/
+reports/
+results/
+config/config.yaml.local
+.DS_Store

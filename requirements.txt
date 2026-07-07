@@ -1,0 +1,6 @@
+pyyaml==6.0.2
+colorama==0.4.6
+dnspython==2.6.1
+python-whois==0.9.3
+requests==2.31.0
+fpdf2==2.7.8

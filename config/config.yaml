@@ -1,0 +1,6 @@
+settings:
+  timeout: 3.0
+  threads: 10
+  output_folder: "reports"
+  theme: "dark_hacker"
+  default_report_format: "json"
