@@ -2,12 +2,12 @@ import whois
 
 def run_whois(domain):
     try:
-        info = whois.whois(domain)
+        data = whois.whois(domain)
 
-        print(info.domain_name)
-        print(info.registrar)
-        print(info.creation_date)
-        print(info.expiration_date)
+        print("Domain:", data.domain_name)
+        print("Registrar:", data.registrar)
+        print("Creation:", data.creation_date)
+        print("Expiry:", data.expiration_date)
 
     except Exception as e:
-        print(e)
+        print(f"Error: {e}")

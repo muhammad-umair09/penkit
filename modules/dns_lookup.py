@@ -26,6 +26,8 @@ def dns_lookup(domain):
         except dns.resolver.NXDOMAIN:
             print(Fore.RED + "  Domain does not exist.")
             return
+        except dns.resolver.Timeout:
+            print("DNS request timed out")
 
         except Exception as e:
             print(Fore.RED + f"  Error: {e}")
@@ -40,3 +42,15 @@ def dns_lookup(domain):
 if __name__ == "__main__":
     target = input("Enter Target Domain: ").strip()
     dns_lookup(target)
+
+import dns.resolver
+
+resolver = dns.resolver.Resolver()
+
+resolver.nameservers = [
+    "8.8.8.8",      # Google DNS
+    "1.1.1.1"       # Cloudflare DNS
+]
+
+resolver.timeout = 5
+resolver.lifetime = 10
