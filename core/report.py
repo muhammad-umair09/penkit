@@ -1,106 +1,48 @@
 import os
-import json
-import csv
-from datetime import datetime
-from typing import Any, Dict
-from fpdf import FPDF
 from core.colors import Colors
 
-class ReportGenerator:
-    def __init__(self, output_dir: str = "reports"):
-        self.output_dir = output_dir
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
-
-    def export(self, module_name: str, target: str, data: Dict[str, Any], fmt: str = "json") -> str:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        sanitized_target = target.replace("http://", "").replace("https://", "").replace("/", "_")
-        filename = f"{module_name}_{sanitized_target}_{timestamp}"
+def view_report_pipeline():
+    """Workspace repositories se saved reports view karne ka main pipeline"""
+    report_dir = "reports"
+    
+    print(f"\n{Colors.BLUE}[*] Isolated File Repositories inside local environment workspace:{Colors.RESET}")
+    
+    # Check agar reports ka folder exist nahi karta ya khali hai
+    if not os.path.exists(report_dir) or not os.listdir(report_dir):
+        print(Colors.fail("[-] No saved reports isolated in the workspace directory."))
+        return
         
-        fmt = fmt.lower()
-        if fmt == "json":
-            return self._to_json(filename, data)
-        elif fmt == "csv":
-            return self._to_csv(filename, data)
-        elif fmt == "html":
-            return self._to_html(filename, module_name, target, data)
-        elif fmt == "pdf":
-            return self._to_pdf(filename, module_name, target, data)
+    # Sirf .txt files ko filter out karne ke liye
+    files = [f for f in os.listdir(report_dir) if f.endswith('.txt')]
+    if not files:
+        print(Colors.fail("[-] No compatible report assets found."))
+        return
+
+    # FIXED: Yahan se Colors.white hata diya taaki crash na ho
+    for idx, file_name in enumerate(files, 1):
+        print(f"  [{idx}] {file_name}")
+
+    try:
+        choice = input(f"\n{Colors.YELLOW}[?] Enter report number to read (or press Enter to cancel): ").strip()
+        if not choice:
+            return
+
+        file_idx = int(choice) - 1
+        if 0 <= file_idx < len(files):
+            target_file = os.path.join(report_dir, files[file_idx])
+            
+            print(f"\n{Colors.GREEN}[=== READING REPORT: {files[file_idx]} ===]{Colors.RESET}\n")
+            
+            # File read karke print karne ka loop
+            with open(target_file, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    print(line.rstrip())
+                    
+            print(f"\n{Colors.GREEN}[=== END OF REPORT EXECUTION DUMP ===]{Colors.RESET}\n")
         else:
-            return self._to_txt(filename, data)
-
-    def _to_txt(self, filename: str, data: Dict[str, Any]) -> str:
-        filepath = os.path.join(self.output_dir, f"{filename}.txt")
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(f"PenKit Analysis Report\nGenerated: {datetime.now()}\n")
-            f.write("="*50 + "\n")
-            for k, v in data.items():
-                f.write(f"{k}: {v}\n")
-        return filepath
-
-    def _to_json(self, filename: str, data: Dict[str, Any]) -> str:
-        filepath = os.path.join(self.output_dir, f"{filename}.json")
-        payload = {
-            "meta": {"engine": "PenKit", "timestamp": str(datetime.now())},
-            "results": data
-        }
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=4)
-        return filepath
-
-    def _to_csv(self, filename: str, data: Dict[str, Any]) -> str:
-        filepath = os.path.join(self.output_dir, f"{filename}.csv")
-        with open(filepath, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["Metric / Key", "Value / Observation"])
-            for k, v in data.items():
-                writer.writerow([k, str(v)])
-        return filepath
-
-    def _to_html(self, filename: str, module: str, target: str, data: Dict[str, Any]) -> str:
-        filepath = os.path.join(self.output_dir, f"{filename}.html")
-        rows = "".join([f"<tr><td><strong>{k}</strong></td><td>{v}</td></tr>" for k, v in data.items()])
-        html_content = f"""
-        <html>
-        <head>
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 30px; background-color: #f4f6f9; color: #333; }}
-                h1 {{ color: #1e293b; }}
-                table {{ width: 100%; border-collapse: collapse; margin-top: 20px; background: #fff; }}
-                th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }}
-                th {{ background-color: #0f172a; color: white; }}
-                tr:hover {{ background-color: #f1f5f9; }}
-            </style>
-        </head>
-        <body>
-            <h1>PenKit Assessment Report</h1>
-            <p><strong>Module:</strong> {module} | <strong>Target:</strong> {target} | <strong>Execution Time:</strong> {datetime.now()}</p>
-            <table>
-                <tr><th>Parameter</th><th>Value</th></tr>
-                {rows}
-            </table>
-        </body>
-        </html>
-        """
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(html_content)
-        return filepath
-
-    def _to_pdf(self, filename: str, module: str, target: str, data: Dict[str, Any]) -> str:
-        filepath = os.path.join(self.output_dir, f"{filename}.pdf")
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Helvetica", size=14)
-        pdf.cell(200, 10, txt="PenKit Assessment Report", ln=1, align="C")
-        pdf.set_font("Helvetica", size=10)
-        pdf.cell(200, 10, txt=f"Target: {target} | Module: {module} | Date: {datetime.now()}", ln=2, align="L")
-        pdf.ln(5)
-        
-        pdf.set_font("Helvetica", size=9)
-        for k, v in data.items():
-            line = f"{k}: {str(v)}"
-            # Handle basic encoding sanitization for FPDF
-            line = line.encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(0, 6, txt=line)
-        pdf.output(filepath)
-        return filepath
+            print(Colors.fail("Error: Selection out of bounds inside active repository array."))
+            
+    except ValueError:
+        print(Colors.fail("Error: Invalid numeric formatting configuration input."))
+    except Exception as e:
+        print(Colors.fail(f"Execution handling failure: {e}"))
