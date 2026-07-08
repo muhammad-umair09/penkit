@@ -24,7 +24,7 @@ from modules.security_headers import analyze_security_headers
 from modules.robots_parser import parse_robots_txt
 from modules.directory_checker import check_directories
 from modules.hash_generator import generate_hashes
-from modules.base64_tool import process_base64
+from modules.base64_tool import manage_base64
 
 def display_menu():
     print(Colors.CYAN + "┌" + "─" * 45 + "┐")
@@ -146,7 +146,7 @@ def main():
             elif choice == "13":
                 target = input("Enter processing string element: ").strip()
                 mode = input("Transform type action (encode/decode): ").strip().lower()
-                res = process_base64(target, mode)
+                res = manage_base64(target, mode)
                 ask_report_export("base64", "transformed_element", res)
             elif choice == "14":
                 view_saved_reports(report_dir)
