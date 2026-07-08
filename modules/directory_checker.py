@@ -1,71 +1,68 @@
 import requests
-import urllib3
-import os
-import time
 from core.colors import Colors
+from core.report import ReportGenerator
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+def check_directories() -> dict:
+    print(f"\n{Colors.YELLOW}[=== Directory Checker Suite ===]")
+    target_url = input("Enter target application base URL (e.g. http://example.com): ").strip()
+    
+    # Input Validation
+    if not target_url.startswith("http://") and not target_url.startswith("https://"):
+        target_url = "http://" + target_url
 
-def check_directories(url: str) -> dict:
-    if not url.startswith("http://") and not url.startswith("https://"):
-        url = "https://" + url  # Standard web infrastructure defaults ke liye
-            
-    print(Colors.info(f"Scanning target application endpoint: {url}"))
+    wordlist_choice = input(f"{Colors.YELLOW}[?] Enter Wordlist Path (or press Enter for Built-in list): ").strip()
     
-    wordlist_path = input(f"{Colors.YELLOW}[?] Enter Wordlist Path (or press Enter for Built-in list): ").strip()
-    directories = []
-    
-    if not wordlist_path:
-        print(Colors.info("No file provided. Activating PenKit Built-in Web Discovery Wordlist..."))
-        # Targeted paths jo httpbin.org aur baqi standard servers par active hote hain
-        directories = [
-            "html", "json", "xml", "status", "robots.txt", 
-            "ip", "user-agent", "headers", "cookies"
-        ]
+    # Quick Built-in list fallback
+    if not wordlist_choice:
+        print(Colors.info("Activating PenKit Built-in Web Discovery Wordlist..."))
+        directories = ["admin", "login", "config.php", "db", "uploads", "robots.txt", "dashboard"]
     else:
-        if not os.path.exists(wordlist_path):
-            print(Colors.fail(f"Error: Wordlist file not found at '{wordlist_path}'"))
-            return {"Found_Directories": []}
         try:
-            with open(wordlist_path, "r") as f:
-                directories = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+            with open(wordlist_choice, "r") as f:
+                directories = [line.strip() for line in f if line.strip()]
         except Exception as e:
-            print(Colors.fail(f"Failed to read file: {e}"))
-            return {"Found_Directories": []}
+            print(Colors.fail(f"Failed to read custom wordlist: {e}"))
+            return {}
 
-    results = {"Found_Directories": []}
-    print(Colors.info(f"Loaded {len(directories)} components. Starting dynamic session verification...\n"))
+    found_assets = {}
+    print(Colors.info("Starting baseline network target handshake verification..."))
     
-    session = requests.Session()
-    session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-    })
-    
-    # Handshake block handle karne ke liye timeout ko thoda flexible rakha hai
+    # CRITICAL FIX: Graceful handling of connection exceptions & timeouts
     try:
-        session.get(url, timeout=5, verify=False)
+        base_test = requests.get(target_url, timeout=5)
+        print(Colors.info(f"Target system alive. Main stream responding with HTTP {base_test.status_code}"))
+    except requests.exceptions.Timeout:
+        print(Colors.fail("[-] Baseline target handshake dropped: Connection timeout reached (Server too slow)."))
+        return {}
+    except requests.exceptions.ConnectionError:
+        print(Colors.fail("[-] Baseline target handshake dropped: Connection reset or invalid hostname lookup resolved."))
+        return {}
     except Exception as e:
-        print(Colors.fail(f"Initial baseline target handshake dropped: {e}"))
+        print(Colors.fail(f"[-] Connectivity matrix mapping fault: {e}"))
+        return {}
 
-    for chunk in directories:
-        test_url = url.rstrip("/") + "/" + chunk.lstrip("/")
+    # Sequential directory analysis
+    for folder in directories:
+        url = f"{target_url.rstrip('/')}/{folder}"
         try:
-            response = session.get(test_url, timeout=5, verify=False, allow_redirects=True)
-            status = response.status_code
-            
-            if status in [200, 403]: 
-                print(f"  {Colors.GREEN}[+] Found: {test_url} (Status: {status})")
-                results["Found_Directories"].append({"url": test_url, "status": status})
-                
-            time.sleep(0.1) # Smooth processing loop delay
-                
-        except requests.RequestException:
-            pass
-            
-    if not results["Found_Directories"]:
-        print(Colors.fail("\nNo common components isolated via dynamic baseline checks."))
+            res = requests.get(url, timeout=3, allow_redirects=False)
+            if res.status_code == 200:
+                print(f"  {Colors.GREEN}[+] Found Asset : {url} (Status: 200 OK){Colors.RESET}")
+                found_assets[folder] = "200 OK"
+            elif res.status_code in [301, 302]:
+                print(f"  {Colors.YELLOW}[!] Redirect    : {url} -> {res.headers.get('Location')}{Colors.RESET}")
+                found_assets[folder] = f"Redirect ({res.status_code})"
+        except requests.exceptions.RequestException:
+            continue # Skip individual timeouts silently to maintain stream integrity
+
+    if not found_assets:
+        print(Colors.fail("\n[-] No common components isolated via dynamic baseline checks."))
     else:
-        print(Colors.success(f"\n[+] Brute-force finished. Identified {len(results['Found_Directories'])} targets!"))
-        
-    return results
+        export_choice = input(f"\n{Colors.YELLOW}[?] Export report? (y/n): ").strip().lower()
+        if export_choice == 'y':
+            fmt = input("Format (txt, json, csv, html) [txt]: ").strip().lower() or "txt"
+            reporter = ReportGenerator("directory_scanner")
+            saved_path = reporter.write_report(found_assets, fmt)
+            print(f"{Colors.GREEN}[+] Audit logs generated at: {saved_path}")
+
+    return found_assets
